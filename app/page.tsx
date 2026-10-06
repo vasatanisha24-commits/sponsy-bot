@@ -1,14 +1,16 @@
-import { DASHBOARD_STATS } from '@/app/lib/mock-data';
+import { DASHBOARD_STATS, MOCK_SPONSORS, MOCK_EMAILS } from '@/app/lib/mock-data';
 import StatCard from '@/app/components/StatCard';
 import SponsorCard from '@/app/components/SponsorCard';
 import PipelineBoard from '@/app/components/PipelineBoard';
 import RecentSponsors from '@/app/components/RecentSponsors';
-import { MOCK_SPONSORS } from '@/app/lib/mock-data';
+import Link from 'next/link';
 
 // Top 3 sponsors by score
 const topSponsors = [...MOCK_SPONSORS]
   .sort((a, b) => b.score - a.score)
   .slice(0, 3);
+
+const emailsPending = MOCK_EMAILS.filter((e) => e.status === 'pending_review').length;
 
 export default function DashboardPage() {
   return (
@@ -25,9 +27,12 @@ export default function DashboardPage() {
           <span className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-full font-medium">
             🤖 AI Agent: Active
           </span>
-          <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-full font-medium">
-            ⏳ {DASHBOARD_STATS.pendingApproval} Awaiting Approval
-          </span>
+          <Link
+            href="/approvals"
+            className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-full font-medium hover:bg-amber-100 transition-colors"
+          >
+            ⏳ {emailsPending} Email{emailsPending !== 1 ? 's' : ''} to Review
+          </Link>
         </div>
       </div>
 
