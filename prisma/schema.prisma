@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  role      String   @default("operator")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sponsors Sponsor[]
+}
+
+model Sponsor {
+  id          String   @id @default(cuid())
+  companyName String
+  website     String?
+  industry    String?
+  description String?
+  tier        String?
+  priority    String   @default("medium")
+  status      String   @default("new")
+  assignedTo  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignee User?      @relation(fields: [assignedTo], references: [id])
+  contacts Contact[]
+  research Research[]
+  emails   Email[]
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  sponsorId String
+  name      String
+  email     String
+  role      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sponsor Sponsor @relation(fields: [sponsorId], references: [id])
+  emails  Email[]
+}
+
+model Research {
+  id        String   @id @default(cuid())
+  sponsorId String
+  data      Json
+  summary   String?
+  aiScore   Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sponsor Sponsor @relation(fields: [sponsorId], references: [id])
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  status      String   @default("draft")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  emails Email[]
+}
+
+model Email {
+  id              String    @id @default(cuid())
+  campaignId      String?
+  sponsorId       String
+  contactId       String
+  subject         String
+  body            String
+  status          String    @default("draft")
+  confidenceScore Int?
+  reviewerId      String?
+  sentAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  campaign  Campaign?  @relation(fields: [campaignId], references: [id])
+  sponsor   Sponsor    @relation(fields: [sponsorId], references: [id])
+  contact   Contact    @relation(fields: [contactId], references: [id])
+  followUps FollowUp[]
+}
+
+model FollowUp {
+  id           String   @id @default(cuid())
+  emailId      String
+  scheduledFor DateTime
+  status       String   @default("pending")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  email Email @relation(fields: [emailId], references: [id])
+}
