@@ -28,7 +28,7 @@ export async function generateOutreachEmail(
   const genAI = new GoogleGenerativeAI(geminiApiKey);
 
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: "gemini-3.8-flash",
     systemInstruction: `You are an expert partnership and sponsorship manager writing highly personalized outreach emails.
 You will be provided with research about a company, a scoring profile, and event context.
 Your goal is to write an engaging, professional, and personalized cold email asking for sponsorship.
@@ -70,7 +70,39 @@ Please write the email and return exactly this JSON structure:
 }
 `;
 
-  const result = await model.generateContent(prompt);
+    let result;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      console.log(`🤖 Gemini scoring attempt ${attempt}/3...`);
+
+      result = await model.generateContent(prompt);
+
+      console.log('✅ Gemini scoring response received.');
+
+      break;
+    } catch (error: any) {
+      console.error(
+        `⚠️ Gemini scoring attempt ${attempt} failed:`,
+        error?.message || error
+      );
+
+      if (attempt === 3) {
+        throw error;
+      }
+
+      const waitTime = attempt * 3000;
+
+      console.log(`⏳ Waiting ${waitTime / 1000} seconds before retry...`);
+
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
+    }
+  }
+
+  // TypeScript safety check
+  if (!result) {
+    throw new Error('Gemini scoring failed after 3 attempts.');
+  }
   let responseText = result.response.text();
   
   // Clean up potential markdown formatting from Gemini response

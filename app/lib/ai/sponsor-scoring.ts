@@ -31,7 +31,7 @@ export async function calculateSponsorScore(
 
   // 1. AI evaluates individual criteria based on the intelligence
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: "gemini-3.8-flash",
     systemInstruction: `You are an objective hackathon sponsorship evaluator. 
 You will receive intelligence about a potential sponsor.
 Rate them on a scale of 1 to 10 for each of the following 5 criteria:
@@ -65,7 +65,39 @@ Return exactly this JSON structure:
 }
 `;
 
-  const result = await model.generateContent(prompt);
+    let result;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      console.log(`🤖 Gemini scoring attempt ${attempt}/3...`);
+
+      result = await model.generateContent(prompt);
+
+      console.log('✅ Gemini scoring response received.');
+
+      break;
+    } catch (error: any) {
+      console.error(
+        `⚠️ Gemini scoring attempt ${attempt} failed:`,
+        error?.message || error
+      );
+
+      if (attempt === 3) {
+        throw error;
+      }
+
+      const waitTime = attempt * 3000;
+
+      console.log(`⏳ Waiting ${waitTime / 1000} seconds before retry...`);
+
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
+    }
+  }
+
+  // TypeScript safety check
+  if (!result) {
+    throw new Error('Gemini scoring failed after 3 attempts.');
+  }
   let responseText = result.response.text();
   
   if (responseText.startsWith('\`\`\`json')) {

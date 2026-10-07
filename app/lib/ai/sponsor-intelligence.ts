@@ -42,7 +42,7 @@ export async function generateSponsorIntelligence(
 
   // 2. Synthesize with Gemini
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: "gemini-3.8-flash",
     systemInstruction: `You are an expert partnership manager for a tech hackathon. 
 Your job is to analyze search results for a potential sponsor and extract key intelligence.
 You must output ONLY valid JSON matching the specified structure, without markdown blocks.
@@ -65,7 +65,39 @@ Search Context:
 ${contextText}
 `;
 
-  const result = await model.generateContent(prompt);
+   let result;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      console.log(`🤖 Gemini scoring attempt ${attempt}/3...`);
+
+      result = await model.generateContent(prompt);
+
+      console.log('✅ Gemini scoring response received.');
+
+      break;
+    } catch (error: any) {
+      console.error(
+        `⚠️ Gemini scoring attempt ${attempt} failed:`,
+        error?.message || error
+      );
+
+      if (attempt === 3) {
+        throw error;
+      }
+
+      const waitTime = attempt * 3000;
+
+      console.log(`⏳ Waiting ${waitTime / 1000} seconds before retry...`);
+
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
+    }
+  }
+
+  // TypeScript safety check
+  if (!result) {
+    throw new Error('Gemini scoring failed after 3 attempts.');
+  }
   let responseText = result.response.text();
   
   // Clean up potential markdown formatting from Gemini response
