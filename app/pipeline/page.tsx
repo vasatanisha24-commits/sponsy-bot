@@ -1,8 +1,31 @@
-export default function PipelinePage() {
-  return (
-    <div className="px-6 py-10">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Pipeline</h1>
-      <p className="text-gray-500 text-sm">Full pipeline management coming soon.</p>
-    </div>
-  );
+import { prisma } from '@/app/lib/db';
+import PipelineClient from './PipelineClient';
+import { Sponsor, Email } from '@prisma/client';
+
+export type PipelineSponsor = Omit<Sponsor, 'createdAt' | 'updatedAt'> & {
+  createdAt: string;
+  updatedAt: string;
+  emails: (Omit<Email, 'createdAt' | 'updatedAt' | 'sentAt'> & {
+    createdAt: string;
+    updatedAt: string;
+    sentAt: string | null;
+  })[];
+};
+
+export const dynamic = 'force-dynamic';
+
+export default async function PipelinePage() {
+  const rawSponsors = await prisma.sponsor.findMany({
+    include: {
+      emails: {
+        orderBy: { createdAt: 'desc' },
+      },
+    },
+    orderBy: { updatedAt: 'desc' },
+  });
+
+  // Serialize dates for Client Component
+  const sponsors = JSON.parse(JSON.stringify(rawSponsors)) as PipelineSponsor[];
+
+  return <PipelineClient initialSponsors={sponsors} />;
 }

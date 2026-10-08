@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Sponsor, SponsorStatus, SponsorPriority } from '@/app/lib/mock-data';
+import { SponsorUI, SponsorStatus, SponsorPriority } from '@/app/lib/types';
 import {
   STATUS_LABEL,
   STATUS_PILL,
@@ -13,17 +14,24 @@ import {
 } from '@/app/lib/sponsor-styles';
 
 interface Props {
-  initialSponsors: Sponsor[];
+  initialSponsors: SponsorUI[];
 }
 
 const ALL = 'all';
 
 export default function SponsorTable({ initialSponsors }: Props) {
-  const [sponsors, setSponsors] = useState<Sponsor[]>(initialSponsors);
+  const router = useRouter();
+  const [sponsors, setSponsors] = useState<SponsorUI[]>(initialSponsors);
+  
+  useEffect(() => {
+    setSponsors(initialSponsors);
+  }, [initialSponsors]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<SponsorStatus | 'all'>(ALL);
   const [priorityFilter, setPriorityFilter] = useState<SponsorPriority | 'all'>(ALL);
   const [view, setView] = useState<'table' | 'cards'>('table');
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     return sponsors.filter((s) => {
@@ -37,10 +45,24 @@ export default function SponsorTable({ initialSponsors }: Props) {
     });
   }, [sponsors, search, statusFilter, priorityFilter]);
 
-  // Remove from local state (mock "delete")
-  const handleDelete = (id: string) => {
-    if (!confirm('Remove this sponsor from the list?')) return;
-    setSponsors((prev) => prev.filter((s) => s.id !== id));
+  // Real DELETE via API
+  const handleDelete = async (id: string) => {
+    if (!confirm('Permanently delete this sponsor and all related emails? This cannot be undone.')) return;
+    setDeleting(id);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/sponsors/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Server error (HTTP ${res.status})`);
+      }
+      setSponsors((prev) => prev.filter((s) => s.id !== id));
+      router.refresh();
+    } catch (err: any) {
+      setDeleteError(err.message);
+    } finally {
+      setDeleting(null);
+    }
   };
 
   return (
@@ -104,12 +126,26 @@ export default function SponsorTable({ initialSponsors }: Props) {
         </div>
       </div>
 
-      {filtered.length === 0 && (
+      {/* Delete error */}
+      {deleteError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 flex justify-between">
+          <span>⚠️ Delete failed: {deleteError}</span>
+          <button onClick={() => setDeleteError(null)} className="text-red-400 hover:text-red-600">✕</button>
+        </div>
+      )}
+
+      {sponsors.length === 0 ? (
+        <div className="text-center py-16 text-gray-400 bg-white rounded-xl border border-gray-200">
+          <p className="text-3xl mb-2">🏢</p>
+          <p className="text-sm font-medium text-gray-600">No sponsors yet.</p>
+          <p className="text-xs mt-1">Click "Add Sponsor" to create your first outreach prospect.</p>
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-3xl mb-2">🔍</p>
           <p className="text-sm">No sponsors match your filters.</p>
         </div>
-      )}
+      ) : null}
 
       {/* ── TABLE VIEW ── */}
       {view === 'table' && filtered.length > 0 && (
@@ -171,9 +207,10 @@ export default function SponsorTable({ initialSponsors }: Props) {
                       </Link>
                       <button
                         onClick={() => handleDelete(s.id)}
-                        className="text-xs text-red-400 hover:text-red-600 font-medium"
+                        disabled={deleting === s.id}
+                        className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50"
                       >
-                        Remove
+                        {deleting === s.id ? '…' : 'Delete'}
                       </button>
                     </div>
                   </td>
@@ -244,9 +281,11 @@ export default function SponsorTable({ initialSponsors }: Props) {
                   </Link>
                   <button
                     onClick={() => handleDelete(s.id)}
-                    className="text-xs text-red-400 hover:text-red-600"
+                    disabled={deleting === s.id}
+                    className="text-xs text-red-400 hover:text-red-600 disabled:opacity-50"
+                    title="Delete sponsor"
                   >
-                    ✕
+                    {deleting === s.id ? '…' : '✕'}
                   </button>
                 </div>
               </div>

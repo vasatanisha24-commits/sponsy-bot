@@ -7,10 +7,13 @@ const NAV_ITEMS = [
   { href: '/', label: 'Dashboard', icon: '⬡' },
   { href: '/sponsors', label: 'Sponsors', icon: '🏢' },
   { href: '/pipeline', label: 'Pipeline', icon: '⚡' },
+  { href: '/research', label: 'Research', icon: '🔍' },
   { href: '/outreach', label: 'Outreach', icon: '✉️' },
-  { href: '/approvals', label: 'Approvals', icon: '✅' },
+  { href: '/replies', label: 'Replies', icon: '📬' },
   { href: '/settings', label: 'Settings', icon: '⚙️' },
 ];
+
+const APPROVALS_ITEM = { href: '/approvals', label: 'Approvals', icon: '✅' };
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -51,18 +54,33 @@ export default function Sidebar() {
         })}
       </nav>
 
+      {/* Approvals (Bottom) */}
+      <div className="px-3 pb-3">
+        <Link
+          href={APPROVALS_ITEM.href}
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+            pathname === APPROVALS_ITEM.href
+              ? 'bg-indigo-600 text-white'
+              : 'text-amber-400 bg-amber-400/10 hover:bg-amber-400/20'
+          }`}
+        >
+          <span className="text-base">{APPROVALS_ITEM.icon}</span>
+          {APPROVALS_ITEM.label}
+        </Link>
+      </div>
+
       {/* Footer */}
-      <div className="px-4 py-4 border-t border-gray-700">
+      <Link href="/settings" className="px-4 py-4 border-t border-gray-700 hover:bg-gray-800 transition-colors block">
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 rounded-full bg-indigo-400 flex items-center justify-center text-xs font-bold">
             H
           </div>
           <div>
             <p className="text-xs font-medium text-white">Human Operator</p>
-            <p className="text-xs text-gray-400">Hackathon Organizer</p>
+            <p className="text-xs text-gray-400">Settings</p>
           </div>
         </div>
-      </div>
+      </Link>
     </aside>
   );
 }

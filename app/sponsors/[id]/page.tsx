@@ -1,4 +1,5 @@
-import { MOCK_SPONSORS } from '@/app/lib/mock-data';
+import { prisma } from '@/app/lib/db';
+import { mapSponsorToUI } from '@/app/lib/mappers';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -9,15 +10,29 @@ import {
   PRIORITY_PILL,
   scoreColor,
 } from '@/app/lib/sponsor-styles';
+import SponsorActions from './SponsorActions';
 
-export function generateStaticParams() {
-  return MOCK_SPONSORS.map((s) => ({ id: s.id }));
-}
-
-export default async function SponsorDetailPage(props: PageProps<'/sponsors/[id]'>) {
+export default async function SponsorDetailPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
-  const sponsor = MOCK_SPONSORS.find((s) => s.id === id);
-  if (!sponsor) notFound();
+  const dbSponsor = await prisma.sponsor.findUnique({
+    where: { id },
+    include: {
+      contacts: true,
+      research: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
+      emails: {
+        include: {
+          campaign: true
+        }
+      }
+    }
+  });
+  
+  if (!dbSponsor) notFound();
+
+  const sponsor = mapSponsorToUI(dbSponsor);
 
   return (
     <div className="px-6 py-6 max-w-4xl mx-auto space-y-6">
@@ -53,14 +68,14 @@ export default async function SponsorDetailPage(props: PageProps<'/sponsors/[id]
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <span className={`text-sm font-semibold px-3 py-1 rounded-full ${STATUS_PILL[sponsor.status]}`}>
-              {STATUS_LABEL[sponsor.status]}
+            <span className={`text-sm font-semibold px-3 py-1 rounded-full ${STATUS_PILL[sponsor.status] || ''}`}>
+              {STATUS_LABEL[sponsor.status] || sponsor.status}
             </span>
-            <span className={`text-sm font-semibold px-3 py-1 rounded capitalize ${TIER_PILL[sponsor.tier]}`}>
+            <span className={`text-sm font-semibold px-3 py-1 rounded capitalize ${TIER_PILL[sponsor.tier] || ''}`}>
               {sponsor.tier}
             </span>
-            <span className={`text-sm font-semibold px-3 py-1 rounded-full ${PRIORITY_PILL[sponsor.priority]}`}>
-              {PRIORITY_LABEL[sponsor.priority]} Priority
+            <span className={`text-sm font-semibold px-3 py-1 rounded-full ${PRIORITY_PILL[sponsor.priority] || ''}`}>
+              {PRIORITY_LABEL[sponsor.priority] || sponsor.priority} Priority
             </span>
           </div>
         </div>
@@ -89,18 +104,18 @@ export default async function SponsorDetailPage(props: PageProps<'/sponsors/[id]
         {/* Classification */}
         <InfoCard title="Classification">
           <InfoRow icon="🏆" label="Tier" value={
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded capitalize ${TIER_PILL[sponsor.tier]}`}>
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded capitalize ${TIER_PILL[sponsor.tier] || ''}`}>
               {sponsor.tier}
             </span>
           } />
           <InfoRow icon="⚡" label="Priority" value={
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PRIORITY_PILL[sponsor.priority]}`}>
-              {PRIORITY_LABEL[sponsor.priority]}
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PRIORITY_PILL[sponsor.priority] || ''}`}>
+              {PRIORITY_LABEL[sponsor.priority] || sponsor.priority}
             </span>
           } />
           <InfoRow icon="📊" label="Status" value={
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_PILL[sponsor.status]}`}>
-              {STATUS_LABEL[sponsor.status]}
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_PILL[sponsor.status] || ''}`}>
+              {STATUS_LABEL[sponsor.status] || sponsor.status}
             </span>
           } />
           <InfoRow icon="👥" label="Assigned To" value={sponsor.assignedTo} />
@@ -135,30 +150,29 @@ export default async function SponsorDetailPage(props: PageProps<'/sponsors/[id]
             </p>
           </div>
         </InfoCard>
+
+        {/* Emails/Campaigns */}
+        <InfoCard title="Emails & Campaigns">
+          {dbSponsor.emails && dbSponsor.emails.length > 0 ? (
+            <div className="space-y-3 mt-2">
+              {dbSponsor.emails.map(email => (
+                <div key={email.id} className="border border-gray-100 rounded-md p-2 text-xs">
+                  <p className="font-semibold text-gray-800">{email.subject}</p>
+                  <p className="text-gray-500 mt-0.5">Status: <span className="font-medium text-gray-700">{email.status}</span></p>
+                  {email.campaign && (
+                    <p className="text-gray-500">Campaign: {email.campaign.name}</p>
+                  )}
+                  <p className="text-gray-400 mt-1">{new Date(email.createdAt).toLocaleDateString()}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 mt-2">No emails found.</p>
+          )}
+        </InfoCard>
       </div>
 
-      {/* Action bar */}
-      <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex flex-wrap gap-3">
-        <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors">
-          ✉️ Draft Outreach Email
-        </button>
-        <button className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg transition-colors">
-          ✅ Mark as Approved
-        </button>
-        <button className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg transition-colors">
-          ✏️ Edit Details
-        </button>
-        <Link
-          href="/sponsors"
-          className="ml-auto px-4 py-2 text-sm text-gray-500 hover:text-gray-700 font-medium"
-        >
-          ← Back to Sponsors
-        </Link>
-      </div>
-
-      <p className="text-xs text-center text-gray-300">
-        Actions above are UI placeholders — backend integration coming soon.
-      </p>
+      <SponsorActions sponsorId={sponsor.id} currentStatus={sponsor.status} />
     </div>
   );
 }
