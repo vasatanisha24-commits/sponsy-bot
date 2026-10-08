@@ -1,8 +1,34 @@
-export default function OutreachPage() {
-  return (
-    <div className="px-6 py-10">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Outreach</h1>
-      <p className="text-gray-500 text-sm">Email outreach management coming soon.</p>
-    </div>
-  );
+import { prisma } from '@/app/lib/db';
+import OutreachClient from './OutreachClient';
+import { EmailWithDetails } from '@/app/lib/types';
+
+export const dynamic = 'force-dynamic';
+
+export default async function OutreachPage() {
+  let emails: EmailWithDetails[] = [];
+  let fetchError: string | null = null;
+
+  try {
+    const raw = await prisma.email.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        sponsor: {
+          include: {
+            research: {
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            },
+          },
+        },
+        contact: true,
+        followUps: true,
+      },
+    });
+    // Serialize dates for Client Component
+    emails = JSON.parse(JSON.stringify(raw)) as EmailWithDetails[];
+  } catch (err: any) {
+    fetchError = err?.message ?? 'Unknown database error';
+  }
+
+  return <OutreachClient initialEmails={emails} fetchError={fetchError} />;
 }

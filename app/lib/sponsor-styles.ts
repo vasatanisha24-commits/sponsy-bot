@@ -1,4 +1,4 @@
-import { SponsorStatus, SponsorTier, SponsorPriority } from '@/app/lib/mock-data';
+import { SponsorStatus, SponsorTier, SponsorPriority } from '@/app/lib/types';
 
 // ── Status ─────────────────────────────────────────────────────────────────
 export const STATUS_LABEL: Record<SponsorStatus, string> = {
@@ -8,6 +8,10 @@ export const STATUS_LABEL: Record<SponsorStatus, string> = {
   follow_up: 'Follow-up',
   approved: 'Approved',
   declined: 'Declined',
+  new: 'New',
+  interested: 'Interested',
+  replied: 'Replied',
+  follow_up_exhausted: 'Exhausted',
 };
 
 export const STATUS_PILL: Record<SponsorStatus, string> = {
@@ -17,6 +21,10 @@ export const STATUS_PILL: Record<SponsorStatus, string> = {
   follow_up: 'bg-purple-100 text-purple-700',
   approved: 'bg-green-100 text-green-700',
   declined: 'bg-red-100 text-red-700',
+  new: 'bg-gray-100 text-gray-700',
+  interested: 'bg-emerald-100 text-emerald-700',
+  replied: 'bg-gray-100 text-gray-700',
+  follow_up_exhausted: 'bg-gray-100 text-gray-700',
 };
 
 // ── Tier ──────────────────────────────────────────────────────────────────

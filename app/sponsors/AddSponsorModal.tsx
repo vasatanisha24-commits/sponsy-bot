@@ -2,16 +2,15 @@
 
 import { useState } from 'react';
 import {
-  Sponsor,
+  SponsorUI,
   SponsorStatus,
   SponsorTier,
   SponsorPriority,
-  INDUSTRIES,
-  TEAM_MEMBERS,
-} from '@/app/lib/mock-data';
+} from '@/app/lib/types';
+import { INDUSTRIES, TEAM_MEMBERS } from '@/app/lib/constants';
 
 interface Props {
-  onAdd: (sponsor: Sponsor) => void;
+  onAdd: (sponsor: SponsorUI) => void;
   onClose: () => void;
 }
 
@@ -77,29 +76,88 @@ export default function AddSponsorModal({ onAdd, onClose }: Props) {
     return Object.keys(e).length === 0;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
+    
+    setIsSubmitting(true);
+    setSubmitError(null);
 
-    const newSponsor: Sponsor = {
-      id: Date.now().toString(),
-      company: form.company.trim(),
-      website: form.website.trim(),
-      industry: form.industry,
-      description: form.description.trim(),
-      logo: initials(form.company),
-      contact: form.contact.trim(),
-      email: form.email.trim(),
-      tier: form.tier,
-      priority: form.priority,
-      status: form.status,
-      assignedTo: form.assignedTo,
-      score: 0, // AI score assigned later
-      lastActivity: 'Just now',
-      notes: form.notes.trim(),
-      createdAt: new Date().toISOString().slice(0, 10),
-    };
-    onAdd(newSponsor);
+    try {
+      const payload = {
+        companyName: form.company.trim(),
+        website: form.website.trim() || null,
+        industry: form.industry || null,
+        description: form.description.trim() || null,
+        tier: form.tier,
+        priority: form.priority,
+        status: form.status,
+        assignedTo: form.assignedTo || null,
+        contacts: {
+          create: [
+            {
+              name: form.contact.trim(),
+              email: form.email.trim(),
+            }
+          ]
+        }
+      };
+
+      const res = await fetch('/api/sponsors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to add sponsor');
+      }
+
+      const dbSponsor = await res.json();
+      
+      // We pass the payload back out so the UI can update optimistically
+      onAdd({
+        id: dbSponsor.id,
+        company: dbSponsor.companyName,
+        website: dbSponsor.website || '',
+        industry: dbSponsor.industry || 'Other',
+        description: dbSponsor.description || '',
+        logo: initials(dbSponsor.companyName),
+        contact: form.contact.trim(),
+        email: form.email.trim(),
+        tier: form.tier,
+        priority: form.priority,
+        status: form.status,
+        assignedTo: form.assignedTo,
+        score: 0,
+        lastActivity: 'Just now',
+        notes: form.notes.trim(),
+        createdAt: new Date().toISOString(),
+      });
+
+      // Chain the research API call asynchronously
+      fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sponsorId: dbSponsor.id }),
+      }).then(r => {
+        if (!r.ok) {
+          console.error('Research API failed:', r.statusText);
+        }
+      }).catch(err => {
+        console.error('Research API threw error:', err);
+      });
+      
+    } catch (err: any) {
+      console.error(err);
+      setSubmitError(err.message || 'Failed to save sponsor');
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -125,6 +183,11 @@ export default function AddSponsorModal({ onAdd, onClose }: Props) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
+          {submitError && (
+            <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm border border-red-200">
+              {submitError}
+            </div>
+          )}
           {/* Company + Website */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Company Name *" error={errors.company}>
@@ -270,9 +333,10 @@ export default function AddSponsorModal({ onAdd, onClose }: Props) {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+              disabled={isSubmitting}
+              className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50"
             >
-              Add Sponsor
+              {isSubmitting ? 'Adding...' : 'Add Sponsor'}
             </button>
           </div>
         </form>

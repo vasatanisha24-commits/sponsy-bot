@@ -1,18 +1,89 @@
-import { DASHBOARD_STATS, MOCK_SPONSORS, MOCK_EMAILS } from '@/app/lib/mock-data';
+import { prisma } from '@/app/lib/db';
+import { mapSponsorToUI } from '@/app/lib/mappers';
 import StatCard from '@/app/components/StatCard';
 import SponsorCard from '@/app/components/SponsorCard';
 import PipelineBoard from '@/app/components/PipelineBoard';
 import RecentSponsors from '@/app/components/RecentSponsors';
 import Link from 'next/link';
 
-// Top 3 sponsors by score
-const topSponsors = [...MOCK_SPONSORS]
-  .sort((a, b) => b.score - a.score)
-  .slice(0, 3);
+export default async function DashboardPage() {
+  const totalSponsors = await prisma.sponsor.count();
+  
+  const contactedData = await prisma.email.findMany({
+    where: { status: 'sent' },
+    select: { sponsorId: true },
+    distinct: ['sponsorId']
+  });
+  const contacted = contactedData.length;
+  
+  const pendingApproval = await prisma.email.count({
+    where: { status: 'pending_review' },
+  });
+  
+  const approved = await prisma.email.count({
+    where: { status: { in: ['approved', 'sent'] } },
+  });
+  
+  const avgScoreData = await prisma.research.aggregate({
+    _avg: { aiScore: true },
+  });
+  
+  const avgScore = avgScoreData._avg.aiScore ? Math.round(avgScoreData._avg.aiScore) : 0;
 
-const emailsPending = MOCK_EMAILS.filter((e) => e.status === 'pending_review').length;
+  const DASHBOARD_STATS = {
+    totalSponsors,
+    contacted,
+    pendingApproval,
+    approved,
+    avgScore,
+  };
 
-export default function DashboardPage() {
+  const topSponsorsResearch = await prisma.research.findMany({
+    where: { aiScore: { not: null } },
+    orderBy: { aiScore: 'desc' },
+    take: 3,
+    include: {
+      sponsor: {
+        include: {
+          contacts: true,
+          research: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
+      },
+    },
+  });
+
+  const topSponsors = topSponsorsResearch.map((r) => mapSponsorToUI(r.sponsor));
+
+  // Get recent sponsors
+  const recentSponsorsData = await prisma.sponsor.findMany({
+    orderBy: { updatedAt: 'desc' },
+    take: 5,
+    include: {
+      contacts: true,
+      research: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
+    },
+  });
+  
+  const recentSponsors = recentSponsorsData.map(mapSponsorToUI);
+
+  // Get all sponsors for pipeline
+  const allSponsorsData = await prisma.sponsor.findMany({
+    include: {
+      contacts: true,
+      research: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
+    },
+  });
+  const allSponsors = allSponsorsData.map(mapSponsorToUI);
+
   return (
     <div className="px-6 py-6 space-y-8 max-w-7xl mx-auto">
       {/* Page header */}
@@ -20,7 +91,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Hackathon sponsor outreach overview · Mock data
+            Hackathon sponsor outreach overview
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -31,7 +102,7 @@ export default function DashboardPage() {
             href="/approvals"
             className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-full font-medium hover:bg-amber-100 transition-colors"
           >
-            ⏳ {emailsPending} Email{emailsPending !== 1 ? 's' : ''} to Review
+            ⏳ {pendingApproval} Email{pendingApproval !== 1 ? 's' : ''} to Review
           </Link>
         </div>
       </div>
@@ -44,30 +115,35 @@ export default function DashboardPage() {
             value={DASHBOARD_STATS.totalSponsors}
             subtitle="In pipeline"
             accent="indigo"
+            href="/sponsors"
           />
           <StatCard
             title="Contacted"
             value={DASHBOARD_STATS.contacted}
             subtitle="Emails sent"
             accent="slate"
+            href="/outreach"
           />
           <StatCard
             title="Pending Approval"
             value={DASHBOARD_STATS.pendingApproval}
             subtitle="Awaiting your review"
             accent="amber"
+            href="/approvals"
           />
           <StatCard
-            title="Approved"
+            title="Approved/Sent"
             value={DASHBOARD_STATS.approved}
-            subtitle="Confirmed sponsors"
+            subtitle="Emails approved or sent"
             accent="green"
+            href="/outreach"
           />
           <StatCard
             title="Avg AI Score"
             value={`${DASHBOARD_STATS.avgScore}/100`}
             subtitle="Relevance rating"
             accent="indigo"
+            href="/research"
           />
         </div>
       </section>
@@ -82,11 +158,17 @@ export default function DashboardPage() {
             </h2>
             <span className="text-xs text-gray-400">AI-ranked</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {topSponsors.map((sponsor) => (
-              <SponsorCard key={sponsor.id} sponsor={sponsor} />
-            ))}
-          </div>
+          {topSponsors.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {topSponsors.map((sponsor) => (
+                <SponsorCard key={sponsor.id} sponsor={sponsor} />
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-500 text-sm">
+              No scored sponsors yet.
+            </div>
+          )}
         </section>
 
         {/* Recent Activity */}
@@ -97,7 +179,7 @@ export default function DashboardPage() {
             </h2>
             <span className="text-xs text-gray-400">Last 5</span>
           </div>
-          <RecentSponsors />
+          <RecentSponsors recentSponsors={recentSponsors} />
         </section>
       </div>
 
@@ -112,7 +194,7 @@ export default function DashboardPage() {
           </span>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <PipelineBoard />
+          <PipelineBoard pipelineSponsors={allSponsors} />
         </div>
       </section>
 

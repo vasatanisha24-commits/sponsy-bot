@@ -1,8 +1,23 @@
-export default function SettingsPage() {
+import { prisma } from '@/app/lib/db';
+import SettingsClient from './SettingsClient';
+
+export const dynamic = 'force-dynamic';
+
+export default async function SettingsPage() {
+  // Fetch the first operator user (since there is no auth yet)
+  const user = await prisma.user.findFirst();
+
+  // Read environment settings
+  const envSettings = {
+    gmailUser: process.env.GMAIL_USER || 'Not configured',
+    hasGmailPassword: !!process.env.GMAIL_APP_PASSWORD,
+    groqConfigured: !!process.env.GROQ_API_KEY,
+  };
+
   return (
-    <div className="px-6 py-10">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Settings</h1>
-      <p className="text-gray-500 text-sm">Platform settings coming soon.</p>
-    </div>
+    <SettingsClient 
+      user={user ? JSON.parse(JSON.stringify(user)) : null} 
+      envSettings={envSettings} 
+    />
   );
 }

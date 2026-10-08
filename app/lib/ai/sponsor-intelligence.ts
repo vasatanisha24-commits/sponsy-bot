@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 import { tavily } from '@tavily/core';
 
 export interface SponsorIntelligence {
@@ -12,19 +12,27 @@ export interface SponsorIntelligence {
   sourceUrls: string[];
 }
 
+import { withExponentialBackoff, parseGroqJson } from './groq-utils';
+
+function validateSponsorIntelligence(data: any): boolean {
+  if (!data || typeof data !== 'object') return false;
+  const requiredKeys = ['companyName', 'industry', 'summary', 'csrFocus', 'previousSponsorships', 'fitReasoning', 'recommendedAsk'];
+  return requiredKeys.every(k => typeof data[k] === 'string');
+}
+
 export async function generateSponsorIntelligence(
   companyName: string,
   website?: string
 ): Promise<SponsorIntelligence> {
-  const geminiApiKey = process.env.GEMINI_API_KEY;
+  const groqApiKey = process.env.GROQ_API_KEY;
   const tavilyApiKey = process.env.TAVILY_API_KEY;
 
-  if (!geminiApiKey || !tavilyApiKey) {
-    throw new Error('Missing GEMINI_API_KEY or TAVILY_API_KEY in environment.');
+  if (!groqApiKey || !tavilyApiKey) {
+    throw new Error('Missing GROQ_API_KEY or TAVILY_API_KEY in environment.');
   }
 
   const searchClient = tavily({ apiKey: tavilyApiKey });
-  const genAI = new GoogleGenerativeAI(geminiApiKey);
+  const groq = new Groq({ apiKey: groqApiKey });
 
   // 1. Search for intelligence via Tavily
   const query = `${companyName} corporate social responsibility hackathon sponsorship developer events community programs`;
@@ -40,14 +48,11 @@ export async function generateSponsorIntelligence(
     .map((r) => `Title: ${r.title}\nURL: ${r.url}\nContent: ${r.content}`)
     .join('\n\n');
 
-  // 2. Synthesize with Gemini
-  const model = genAI.getGenerativeModel({
-    model: "gemini-3.8-flash",
-    systemInstruction: `You are an expert partnership manager for a tech hackathon. 
+  // 2. Synthesize with Groq
+  const systemInstruction = `You are an expert partnership manager for a tech hackathon. 
 Your job is to analyze search results for a potential sponsor and extract key intelligence.
 You must output ONLY valid JSON matching the specified structure, without markdown blocks.
-Do not invent facts. Only use information present in the provided search context. If something is unknown, state "Not found in search results."`,
-  });
+Do not invent facts. Only use information present in the provided search context. If something is unknown, state "Not found in search results."`;
 
   const prompt = `
 Analyze the following search context for the company "${companyName}" ${website ? `(Website: ${website})` : ''}.
@@ -65,50 +70,29 @@ Search Context:
 ${contextText}
 `;
 
-   let result;
+  const result = await withExponentialBackoff(async () => {
+    console.log(`🤖 Requesting Groq intelligence for ${companyName}...`);
+    const res = await groq.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemInstruction },
+        { role: 'user', content: prompt }
+      ],
+      model: 'openai/gpt-oss-120b',
+      response_format: { type: 'json_object' }
+    });
+    console.log('✅ Groq response received.');
+    return res;
+  });
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      console.log(`🤖 Gemini scoring attempt ${attempt}/3...`);
+  const responseText = result.choices[0]?.message?.content || '';
+  const parsed = parseGroqJson(responseText);
 
-      result = await model.generateContent(prompt);
-
-      console.log('✅ Gemini scoring response received.');
-
-      break;
-    } catch (error: any) {
-      console.error(
-        `⚠️ Gemini scoring attempt ${attempt} failed:`,
-        error?.message || error
-      );
-
-      if (attempt === 3) {
-        throw error;
-      }
-
-      const waitTime = attempt * 3000;
-
-      console.log(`⏳ Waiting ${waitTime / 1000} seconds before retry...`);
-
-      await new Promise((resolve) => setTimeout(resolve, waitTime));
-    }
+  if (!validateSponsorIntelligence(parsed)) {
+    throw new Error('Groq returned invalid or missing keys for SponsorIntelligence.');
   }
-
-  // TypeScript safety check
-  if (!result) {
-    throw new Error('Gemini scoring failed after 3 attempts.');
-  }
-  let responseText = result.response.text();
-  
-  // Clean up potential markdown formatting from Gemini response
-  if (responseText.startsWith('\`\`\`json')) {
-    responseText = responseText.replace(/^\`\`\`json\n/, '').replace(/\n\`\`\`$/, '');
-  }
-
-  const parsed = JSON.parse(responseText) as Omit<SponsorIntelligence, 'sourceUrls'>;
 
   return {
-    ...parsed,
+    ...(parsed as Omit<SponsorIntelligence, 'sourceUrls'>),
     sourceUrls: urls,
   };
 }

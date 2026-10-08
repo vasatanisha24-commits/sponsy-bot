@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 import { SponsorIntelligence } from './sponsor-intelligence';
 
 export interface SponsorScore {
@@ -14,6 +14,16 @@ export interface SponsorScore {
   };
 }
 
+import { withExponentialBackoff, parseGroqJson } from './groq-utils';
+
+function validateSponsorScore(data: any): boolean {
+  if (!data || typeof data !== 'object') return false;
+  const requiredKeys = ['industryRelevance', 'previousSponsorships', 'csrAlignment', 'audienceFit', 'askFit'];
+  if (!requiredKeys.every(k => typeof data[k] === 'number')) return false;
+  if (typeof data.explanation !== 'string') return false;
+  return true;
+}
+
 /**
  * Calculates a transparent sponsor score using AI for evaluating criteria,
  * but deterministic math for the final score and priority.
@@ -21,18 +31,16 @@ export interface SponsorScore {
 export async function calculateSponsorScore(
   intelligence: SponsorIntelligence
 ): Promise<SponsorScore> {
-  const geminiApiKey = process.env.GEMINI_API_KEY;
+  const groqApiKey = process.env.GROQ_API_KEY;
 
-  if (!geminiApiKey) {
-    throw new Error('Missing GEMINI_API_KEY in environment.');
+  if (!groqApiKey) {
+    throw new Error('Missing GROQ_API_KEY in environment.');
   }
 
-  const genAI = new GoogleGenerativeAI(geminiApiKey);
+  const groq = new Groq({ apiKey: groqApiKey });
 
   // 1. AI evaluates individual criteria based on the intelligence
-  const model = genAI.getGenerativeModel({
-    model: "gemini-3.8-flash",
-    systemInstruction: `You are an objective hackathon sponsorship evaluator. 
+  const systemInstruction = `You are an objective hackathon sponsorship evaluator. 
 You will receive intelligence about a potential sponsor.
 Rate them on a scale of 1 to 10 for each of the following 5 criteria:
 - Industry Relevance
@@ -41,8 +49,7 @@ Rate them on a scale of 1 to 10 for each of the following 5 criteria:
 - Event Audience Fit (how well they fit a student developer/engineer audience)
 - Sponsorship/Ask Fit (how realistic the recommended ask is)
 Also provide a short 1-2 sentence explanation summarizing the rationale behind your ratings.
-Output MUST be valid JSON exactly matching the requested format. Do NOT include markdown blocks like \`\`\`json.`,
-  });
+Output MUST be valid JSON exactly matching the requested format. Do NOT include markdown blocks like \`\`\`json.`;
 
   const prompt = `
 Evaluate this sponsor based on the following intelligence:
@@ -65,53 +72,26 @@ Return exactly this JSON structure:
 }
 `;
 
-    let result;
+  const result = await withExponentialBackoff(async () => {
+    console.log(`🤖 Requesting Groq scoring for ${intelligence.companyName}...`);
+    const res = await groq.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemInstruction },
+        { role: 'user', content: prompt }
+      ],
+      model: 'openai/gpt-oss-120b',
+      response_format: { type: 'json_object' }
+    });
+    console.log('✅ Groq scoring response received.');
+    return res;
+  });
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      console.log(`🤖 Gemini scoring attempt ${attempt}/3...`);
+  const responseText = result.choices[0]?.message?.content || '';
+  const ratings = parseGroqJson(responseText);
 
-      result = await model.generateContent(prompt);
-
-      console.log('✅ Gemini scoring response received.');
-
-      break;
-    } catch (error: any) {
-      console.error(
-        `⚠️ Gemini scoring attempt ${attempt} failed:`,
-        error?.message || error
-      );
-
-      if (attempt === 3) {
-        throw error;
-      }
-
-      const waitTime = attempt * 3000;
-
-      console.log(`⏳ Waiting ${waitTime / 1000} seconds before retry...`);
-
-      await new Promise((resolve) => setTimeout(resolve, waitTime));
-    }
+  if (!validateSponsorScore(ratings)) {
+    throw new Error('Groq returned invalid or missing keys for SponsorScore ratings.');
   }
-
-  // TypeScript safety check
-  if (!result) {
-    throw new Error('Gemini scoring failed after 3 attempts.');
-  }
-  let responseText = result.response.text();
-  
-  if (responseText.startsWith('\`\`\`json')) {
-    responseText = responseText.replace(/^\`\`\`json\n/, '').replace(/\n\`\`\`$/, '');
-  }
-
-  const ratings = JSON.parse(responseText) as {
-    industryRelevance: number;
-    previousSponsorships: number;
-    csrAlignment: number;
-    audienceFit: number;
-    askFit: number;
-    explanation: string;
-  };
 
   // 2. Deterministic math for the final score out of 100
   // Weights: 

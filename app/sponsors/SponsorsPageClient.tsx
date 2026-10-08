@@ -1,21 +1,28 @@
 'use client';
 
-import { useState } from 'react';
-import { Sponsor } from '@/app/lib/mock-data';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { SponsorUI } from '@/app/lib/types';
 import SponsorTable from './SponsorTable';
 import AddSponsorModal from './AddSponsorModal';
 
 interface Props {
-  initialSponsors: Sponsor[];
+  initialSponsors: SponsorUI[];
 }
 
 export default function SponsorsPageClient({ initialSponsors }: Props) {
-  const [sponsors, setSponsors] = useState<Sponsor[]>(initialSponsors);
+  const [sponsors, setSponsors] = useState<SponsorUI[]>(initialSponsors);
+  
+  useEffect(() => {
+    setSponsors(initialSponsors);
+  }, [initialSponsors]);
   const [showModal, setShowModal] = useState(false);
+  const router = useRouter();
 
-  function handleAdd(sponsor: Sponsor) {
+  function handleAdd(sponsor: SponsorUI) {
     setSponsors((prev) => [sponsor, ...prev]);
     setShowModal(false);
+    router.refresh();
   }
 
   return (

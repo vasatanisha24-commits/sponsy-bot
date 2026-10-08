@@ -1,8 +1,11 @@
+import Link from 'next/link';
+
 interface StatCardProps {
   title: string;
   value: string | number;
   subtitle?: string;
   accent?: 'indigo' | 'green' | 'amber' | 'rose' | 'slate';
+  href?: string;
 }
 
 const accentMap = {
@@ -26,11 +29,10 @@ export default function StatCard({
   value,
   subtitle,
   accent = 'indigo',
+  href,
 }: StatCardProps) {
-  return (
-    <div
-      className={`rounded-xl border p-5 ${accentMap[accent]}`}
-    >
+  const content = (
+    <>
       <p className="text-xs font-semibold uppercase tracking-wider opacity-70">
         {title}
       </p>
@@ -38,6 +40,23 @@ export default function StatCard({
       {subtitle && (
         <p className="text-xs mt-1 opacity-60">{subtitle}</p>
       )}
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={`rounded-xl border p-5 ${accentMap[accent]} hover:shadow-md transition-shadow block`}
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className={`rounded-xl border p-5 ${accentMap[accent]}`}>
+      {content}
     </div>
   );
 }
