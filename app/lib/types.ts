@@ -1,3 +1,22 @@
+// ── Campaign Requirements supplied by the user before email generation ────────
+export interface CampaignRequirements {
+  // Required
+  eventName: string;
+  eventDescription: string;
+  sponsorshipAsk: string;
+  sponsorBenefits: string;
+  senderName: string;
+  senderRole: string;
+  organizationName: string;
+  contactInfo: string;
+
+  // Optional
+  expectedParticipants?: string;
+  eventDate?: string;
+  specificRequest?: string;
+  additionalInstructions?: string;
+}
+
 export type SponsorStatus =
   | 'researched'
   | 'outreach_pending'
