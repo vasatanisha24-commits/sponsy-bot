@@ -3,39 +3,38 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
-  email     String   @unique
-  role      String   @default("operator")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  sponsors Sponsor[]
+  email     String    @unique
+  role      String    @default("operator")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  sponsors  Sponsor[]
 }
 
 model Sponsor {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   companyName String
   website     String?
   industry    String?
   description String?
   tier        String?
-  priority    String   @default("medium")
-  status      String   @default("new")
+  priority    String     @default("medium")
+  status      String     @default("new")
   assignedTo  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  assignee User?      @relation(fields: [assignedTo], references: [id])
-  contacts Contact[]
-  research Research[]
-  emails   Email[]
-  replies  Reply[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  contacts    Contact[]
+  emails      Email[]
+  replies     Reply[]
+  research    Research[]
+  assignee    User?      @relation(fields: [assignedTo], references: [id])
 }
 
 model Contact {
@@ -46,9 +45,8 @@ model Contact {
   role      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  sponsor Sponsor @relation(fields: [sponsorId], references: [id])
-  emails  Email[]
+  sponsor   Sponsor  @relation(fields: [sponsorId], references: [id])
+  emails    Email[]
 }
 
 model Research {
@@ -59,8 +57,7 @@ model Research {
   aiScore   Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  sponsor Sponsor @relation(fields: [sponsorId], references: [id])
+  sponsor   Sponsor  @relation(fields: [sponsorId], references: [id])
 }
 
 model Campaign {
@@ -70,59 +67,55 @@ model Campaign {
   status      String   @default("draft")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  emails Email[]
+  emails      Email[]
 }
 
 model Email {
-  id              String    @id @default(cuid())
+  id              String     @id @default(cuid())
   campaignId      String?
   sponsorId       String
   contactId       String
   subject         String
   body            String
-  status          String    @default("draft")
+  status          String     @default("draft")
   confidenceScore Int?
   reviewerId      String?
-  messageId       String?
   sentAt          DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  campaign  Campaign?  @relation(fields: [campaignId], references: [id])
-  sponsor   Sponsor    @relation(fields: [sponsorId], references: [id])
-  contact   Contact    @relation(fields: [contactId], references: [id])
-  followUps FollowUp[]
-  replies   Reply[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  messageId       String?
+  campaign        Campaign?  @relation(fields: [campaignId], references: [id])
+  contact         Contact    @relation(fields: [contactId], references: [id])
+  sponsor         Sponsor    @relation(fields: [sponsorId], references: [id])
+  followUps       FollowUp[]
+  replies         Reply[]
 }
 
 model FollowUp {
   id           String    @id @default(cuid())
   emailId      String
-  subject      String?
-  body         String?
   scheduledFor DateTime
   status       String    @default("pending_review")
-  sentAt       DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-
-  email Email @relation(fields: [emailId], references: [id])
+  body         String?
+  sentAt       DateTime?
+  subject      String?
+  email        Email     @relation(fields: [emailId], references: [id])
 }
 
 model Reply {
   id          String   @id @default(cuid())
   emailId     String
   sponsorId   String
-  messageId   String   @unique
   subject     String
   body        String
   senderEmail String
   receivedAt  DateTime
-  outcome     String?  // 'interested' | 'declined' | null (unclassified)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  email   Email   @relation(fields: [emailId], references: [id])
-  sponsor Sponsor @relation(fields: [sponsorId], references: [id])
+  messageId   String   @unique
+  outcome     String?
+  email       Email    @relation(fields: [emailId], references: [id])
+  sponsor     Sponsor  @relation(fields: [sponsorId], references: [id])
 }
