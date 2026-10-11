@@ -6,6 +6,8 @@ import PipelineBoard from '@/app/components/PipelineBoard';
 import RecentSponsors from '@/app/components/RecentSponsors';
 import Link from 'next/link';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardPage() {
   const totalSponsors = await prisma.sponsor.count();
   

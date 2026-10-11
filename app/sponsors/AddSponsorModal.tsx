@@ -138,20 +138,6 @@ export default function AddSponsorModal({ onAdd, onClose }: Props) {
         notes: form.notes.trim(),
         createdAt: new Date().toISOString(),
       });
-
-      // Chain the research API call asynchronously
-      fetch('/api/research', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sponsorId: dbSponsor.id }),
-      }).then(r => {
-        if (!r.ok) {
-          console.error('Research API failed:', r.statusText);
-        }
-      }).catch(err => {
-        console.error('Research API threw error:', err);
-      });
-      
     } catch (err: any) {
       console.error(err);
       setSubmitError(err.message || 'Failed to save sponsor');

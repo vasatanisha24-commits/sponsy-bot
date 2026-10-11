@@ -2,6 +2,8 @@ import { prisma } from '@/app/lib/db';
 import { mapSponsorToUI } from '@/app/lib/mappers';
 import SponsorsPageClient from './SponsorsPageClient';
 
+export const dynamic = 'force-dynamic';
+
 export default async function SponsorsPage() {
   const dbSponsors = await prisma.sponsor.findMany({
     orderBy: { createdAt: 'desc' },

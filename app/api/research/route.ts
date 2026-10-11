@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { generateSponsorIntelligence } from '@/app/lib/ai/sponsor-intelligence';
 import { calculateSponsorScore } from '@/app/lib/ai/sponsor-scoring';
 import {
-  generateOutreachEmail,
   generateOutreachEmailWithRequirements,
 } from '@/app/lib/ai/sponsor-email-generator';
 import { prisma } from '@/app/lib/db';
@@ -20,27 +19,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'sponsorId is required' }, { status: 400 });
     }
 
-    // Validate required campaign requirement fields when provided
-    if (campaignRequirements) {
-      const requiredFields: (keyof CampaignRequirements)[] = [
-        'eventName',
-        'eventDescription',
-        'sponsorshipAsk',
-        'sponsorBenefits',
-        'senderName',
-        'senderRole',
-        'organizationName',
-        'contactInfo',
-      ];
-      const missing = requiredFields.filter(
-        (f) => !campaignRequirements[f] || String(campaignRequirements[f]).trim() === ''
+    if (!campaignRequirements || typeof campaignRequirements !== 'object') {
+      return NextResponse.json(
+        { error: 'campaignRequirements is required to generate outreach email' },
+        { status: 400 }
       );
-      if (missing.length > 0) {
-        return NextResponse.json(
-          { error: `Missing required campaign fields: ${missing.join(', ')}` },
-          { status: 400 }
-        );
-      }
+    }
+
+    // Validate required campaign requirement fields
+    const requiredFields: (keyof CampaignRequirements)[] = [
+      'eventName',
+      'eventDescription',
+      'sponsorshipAsk',
+      'sponsorBenefits',
+      'senderName',
+      'senderRole',
+      'organizationName',
+      'contactInfo',
+    ];
+    const missing = requiredFields.filter(
+      (f) => !campaignRequirements[f] || String(campaignRequirements[f]).trim() === ''
+    );
+    if (missing.length > 0) {
+      return NextResponse.json(
+        { error: `Missing required campaign fields: ${missing.join(', ')}` },
+        { status: 400 }
+      );
     }
 
     // Fetch Sponsor and Contact from DB
@@ -86,20 +90,16 @@ export async function POST(req: Request) {
       industry: sponsor.industry,
     };
 
-    // 3. Generate email — use requirements-aware generator when campaign details are provided
+    // 3. Generate email — use requirements-aware generator with validated campaign details
     let email;
     try {
-      if (campaignRequirements) {
-        email = await generateOutreachEmailWithRequirements(
-          intelligence,
-          score,
-          contactName,
-          campaignRequirements,
-          sponsorContext
-        );
-      } else {
-        email = await generateOutreachEmail(intelligence, score, contactName, sponsorContext);
-      }
+      email = await generateOutreachEmailWithRequirements(
+        intelligence,
+        score,
+        contactName,
+        campaignRequirements,
+        sponsorContext
+      );
     } catch (err: any) {
       return NextResponse.json({ error: 'Failed to generate outreach email (Groq error)', details: err.message }, { status: 502 });
     }
